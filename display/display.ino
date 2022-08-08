@@ -161,9 +161,17 @@ const byte DNS_PORT = 53;
 IPAddress apIP(192, 168, 4, 1);
 DNSServer dnsServer;
 
+//fastled stuff
+#define NUM_LEDS 26 //probably don't want this with mutliple digits
+#define DATA_PIN 19
+CRGB digit1[NUM_LEDS];
+
+//display related variables
 uint8_t globalRed = 0;
 uint8_t globalGreen = 0;
 uint8_t globalBlue = 0;
+
+uint8_t tempChar = ' ';
 
 
 void setSegment(uint8_t segmentNum, CRGB *leds, uint8_t red, uint8_t green, uint8_t blue) {
@@ -217,19 +225,19 @@ void setup() {
     {
       chipid |= ((ESP.getEfuseMac() >> (40 - i)) & 0xff) << i;
     }
+  
+    char ap_ssid[25];
+    snprintf(ap_ssid, 26, "ESPUI-%08X", chipid);
+    WiFi.softAP(ap_ssid);
+
+    timeout = 5;
+    do
+    {
+      delay(500);
+      Serial.print(".");
+      timeout--;
+    } while (timeout);
   }
-
-  char ap_ssid[25];
-  snprintf(ap_ssid, 26, "ESPUI-%08X", chipid);
-  WiFi.softAP(ap_ssid);
-
-  timeout = 5;
-  do
-  {
-    delay(500);
-    Serial.print(".");
-    timeout--;
-  } while (timeout);
 
   dnsServer.start(DNS_PORT, "*", apIP);
 
@@ -238,8 +246,17 @@ void setup() {
   Serial.println(WiFi.getMode() == WIFI_AP ? "Station" : "Client");
   Serial.print("IP address: ");
   Serial.println(WiFi.getMode() == WIFI_AP ? WiFi.softAPIP() : WiFi.localIP());
+
+  //initialize leds
+  FastLED.addLeds<NEOPIXEL, DATA_PIN>(digit1, NUM_LEDS);
 }
 
 void loop() {
-
+  if(tempChar == '~') {
+    tempChar = ' ';
+  } else {
+    tempChar++;
+  }
+  setDigit(tempChar, digit1);
+  delay(1000);
 }
