@@ -13,9 +13,47 @@
 
 #include <FastLED.h>
 
-const uint8_t segments[14][2] = {{0,4},{5,9},{10,14},{15,19},{20,24},{25,29},{30,34},{35,40},{41,44},{45,49},{50,54},{55,59},{60,64},{65,69}};
+// me leds are wired up as so
+//
+//      11
+//  9_______12
+//  |\  |10/|
+// 8| \ | / |14
+//  |  \|/  |
+//  7——— ———13
+//  |  /|\  |
+// 1| / | \ |6
+//  |/  |4 \| 
+//  2———————5
+//      3
+
+// | 1 | 2 | 3 | 4 | 5 |  6  |  7  |  8  |  9  |  10 |  11 |  12 |  13 | 14 |  
+//  0-1|2-3|4-5|6-7|8-9|10-11|12-12|13-14|15-16|17-18|19-20|21-22|23-23|24-25|
+
+
+//convert order as wired to labels down below by making the position in the array correleta to the letter labels
+// i.e. 0=a, 1=b, 2=c, etc. and the numers in the arrays the start and stop pixels in the led strip
+
+//                                  a       b       c      d     e      f       g       h       i       j       k      l     m     n
+const uint8_t segments[14][2] = {{19,20},{24,25},{10,11},{4,5},{0,1},{13,14},{12,12},{23,23},{15,16},{17,18},{21,22},{8,9},{6,7},{2,3}};
+
+
+// the alphanumeric_segs array is using a clockwise labeling scheme
+
+//      a
+//  i_______k
+//  |\  |j /|
+// f| \ | / |b
+//  |  \|/  |
+//  g———————h
+//  |  /|\  |
+// e| / | \ |c
+//  |/  |m \| 
+//  n———————l
+//      d
 
 static const uint16_t alphanumeric_segs[96]{
+//  nmlkjihgfedcba  
   0b00000000000000, // ' ' (space)
   0b00000000000000, //
   0b00000000000000, //
@@ -134,9 +172,9 @@ void setSegment(uint8_t segmentNum, CRGB *leds, uint8_t red, uint8_t green, uint
   }
 }
 
-void setSegments(uint16_t segments, CRGB *leds, uint8_t red, uint8_t green, uint8_t blue) {
+void setSegments(uint16_t segmentsBits, CRGB *leds, uint8_t red, uint8_t green, uint8_t blue) {
   for (uint8_t i; i < 14; i++) {
-    if (bitRead(segments, i)) {
+    if (bitRead(segmentsBits, i)) {
       setSegment(i, leds, red, green, blue);
     } else {
       setSegment(i, leds, 0, 0, 0);
