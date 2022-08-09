@@ -173,6 +173,10 @@ uint8_t globalBlue = 0;
 
 uint8_t tempChar = ' ';
 
+// espui variables
+int timeLabelId;
+int timeId;
+
 
 void setSegment(uint8_t segmentNum, CRGB *leds, uint8_t red, uint8_t green, uint8_t blue) {
   // Serial.print("setting segment: ");
@@ -203,6 +207,28 @@ void setDigit(uint8_t displayChar, CRGB *leds) {
     // Serial.print(", index: ");
     // Serial.println(displayChar - ' ');
   }
+}
+
+// ESPUI callbacks
+void timeCallback(Control *sender, int type) {
+  if(type == TM_VALUE) { 
+    Serial.println(sender->value);
+  }
+}
+
+void timeButtonCallback(Control* sender, int type)
+{
+    switch (type)
+    {
+    case B_DOWN:
+        // Serial.println("Button DOWN");
+        break;
+
+    case B_UP:
+        Serial.println("Updating Time");
+        ESPUI.updateTime(timeId);
+        break;
+    }
 }
 
 void setup() {
@@ -236,7 +262,7 @@ void setup() {
     }
   
     char ap_ssid[25];
-    sprintf(ap_ssid, 26, "ESPUI-%08X", chipid);
+    snprintf(ap_ssid, 26, "ESPUI-%08X", chipid);
     WiFi.softAP(ap_ssid);
 
     timeout = 5;
@@ -256,32 +282,33 @@ void setup() {
   Serial.print("IP address: ");
   Serial.println(WiFi.getMode() == WIFI_AP ? WiFi.softAPIP() : WiFi.localIP());
 
+  //espui elements
+  timeLabelId = ESPUI.label("Last Time Update:", ControlColor::Turquoise, "not updated");
+  timeId = ESPUI.addControl(Time, "", "", None, 0, timeCallback);
+  ESPUI.button("Update Time", &timeButtonCallback, ControlColor::Peterriver, "Press");
+  ESPUI.begin("ESPUI Control");
+
   //initialize leds
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(digit1, NUM_LEDS);
 }
 
 void loop() {
-  // if(tempChar == '`') {
-  //   tempChar = ' ';
-  // } else {
-  //   tempChar++;
-  // }
+  dnsServer.processNextRequest();
+
+  
   if(Serial.available() > 0) {
     Serial.println(Serial.peek());
     if(Serial.peek() >= ' ' && Serial.peek() <= '~') {
       // Serial.println("good character");
       tempChar = Serial.read();
+      Serial.print("tempChar: ");
+      Serial.println(char(tempChar));
     } else {
       Serial.read();
       // Serial.println("bad character");
     }
   }
-  Serial.print("tempChar: ");
-  // Serial.println(tempChar);
-  Serial.println(char(tempChar));
+  
   setDigit(tempChar, digit1);
-  // setSegment(tempChar, digit1, 50, 0, 0);
   FastLED.show();
-  delay(1000);
-  // setSegment(tempChar, digit1, 0, 0, 0);
 }
