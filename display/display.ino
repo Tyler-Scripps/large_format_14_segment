@@ -236,7 +236,7 @@ void setup() {
     }
   
     char ap_ssid[25];
-    snprintf(ap_ssid, 26, "ESPUI-%08X", chipid);
+    sprintf(ap_ssid, 26, "ESPUI-%08X", chipid);
     WiFi.softAP(ap_ssid);
 
     timeout = 5;
