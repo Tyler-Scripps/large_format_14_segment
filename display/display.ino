@@ -12,6 +12,7 @@
 #include <dataZeptoJS.h>
 
 #include <FastLED.h>
+#include <Preferences.h>
 
 // me leds are wired up as so
 //
@@ -153,9 +154,10 @@ static const uint16_t alphanumeric_segs[96]{
 };
 
 //wifi stuff
+Preferences preferences;
 const char* hostname = "segClock";
-const char* ssid = "ESPUI";
-const char* password = "espui";
+String ssid = "ESPUI";
+String password = "espui";
 
 const byte DNS_PORT = 53;
 IPAddress apIP(192, 168, 4, 1);
@@ -163,8 +165,9 @@ DNSServer dnsServer;
 
 //fastled stuff
 #define NUM_LEDS 26 //probably don't want this with mutliple digits
-#define DATA_PIN 19
-CRGB digit1[NUM_LEDS];
+#define NUM_DIGITS 1
+const uint8_t dataPins = {19};
+CRGB digits[NUM_DIGITS][NUM_LEDS];
 
 //display related variables
 uint8_t globalRed = 50;
@@ -172,10 +175,22 @@ uint8_t globalGreen = 0;
 uint8_t globalBlue = 0;
 
 uint8_t tempChar = ' ';
+String timeStr;
+
+int mode = 0;
+
+String text;
+unsigned long lastTime = 0;
+int lastPos = 0;
 
 // espui variables
 int timeLabelId;
 int timeId;
+
+String tempSSID;
+String tempPassword;
+
+
 
 
 void setSegment(uint8_t segmentNum, CRGB *leds, uint8_t red, uint8_t green, uint8_t blue) {
@@ -212,7 +227,10 @@ void setDigit(uint8_t displayChar, CRGB *leds) {
 // ESPUI callbacks
 void timeCallback(Control *sender, int type) {
   if(type == TM_VALUE) { 
-    Serial.println(sender->value);
+    timeStr = sender->value.substring(sender->value.indexOf("T") + 1, sender->value.length() - 5);
+    Serial.print("Time: ");
+    Serial.println(timeStr);
+    ESPUI.print(timeLabelId, timeStr);
   }
 }
 
@@ -231,12 +249,48 @@ void timeButtonCallback(Control* sender, int type)
     }
 }
 
+void wifiButtonCallback(Control* sender, int type) {
+  if (type == B_UP) {
+    ssid = tempSSID;
+    password = tempPassword;
+    Serial.print("ssid: ");
+    Serial.println(ssid);
+    Serial.print("password: ");
+    Serial.println(password);
+    preferences.putString("ssid", ssid); 
+    preferences.putString("password", password);
+  }
+}
+
+void wifiSSIDCallback(Control* sender, int type) {
+  tempSSID = sender->value;
+}
+
+void wifiPasswordCallback(Control* sender, int type) {
+  tempPassword = sender->value;
+}
+
+void messageCallback(Control* sender, int type) {
+  text = sender->value;
+}
+
 void setup() {
-  ESPUI.setVerbosity(Verbosity::VerboseJSON);
   Serial.begin(115200);
+
+  preferences.begin("credentials", false);
+
+  ssid = preferences.getString("ssid", "");
+  password = preferences.getString("password", "");
+
+  Serial.print("ssid: ");
+  Serial.println(ssid);
+  Serial.print("password: ");
+  Serial.println(password);
+
+  ESPUI.setVerbosity(Verbosity::VerboseJSON);
   
   WiFi.setHostname(hostname);
-  WiFi.begin(ssid, password);
+  WiFi.begin(ssid.c_str(), password.c_str());
   Serial.print("\n\nTry to connect to existing network");
 
   uint8_t timeout = 10;
@@ -286,29 +340,68 @@ void setup() {
   timeLabelId = ESPUI.label("Last Time Update:", ControlColor::Turquoise, "not updated");
   timeId = ESPUI.addControl(Time, "", "", None, 0, timeCallback);
   ESPUI.button("Update Time", &timeButtonCallback, ControlColor::Peterriver, "Press");
+
+  auto text3 = ESPUI.text("Message", messageCallback, ControlColor::Dark, "message");
+  ESPUI.addControl(ControlType::Max, "", "32", ControlColor::None, text2);
+
+  auto text1 = ESPUI.text("WiFi SSID", wifiSSIDCallback, ControlColor::Dark, ssid);
+  ESPUI.addControl(ControlType::Max, "", "32", ControlColor::None, text1);
+
+  auto text2 = ESPUI.text("WiFi Password", wifiPasswordCallback, ControlColor::Dark, "password");
+  ESPUI.addControl(ControlType::Max, "", "32", ControlColor::None, text2);
+
+  ESPUI.button("Update WiFi Credentials", &wifiButtonCallback, ControlColor::Turquoise, "Update ");
+
+
   ESPUI.begin("ESPUI Control");
 
   //initialize leds
-  FastLED.addLeds<NEOPIXEL, DATA_PIN>(digit1, NUM_LEDS);
+  for(int i = 0; i < NUM_LEDS; i++) {
+    FastLED.addLeds<NEOPIXEL, dataPins[i]>(digits[i], NUM_LEDS);
+  }
 }
 
 void loop() {
   dnsServer.processNextRequest();
 
-  
-  if(Serial.available() > 0) {
-    Serial.println(Serial.peek());
-    if(Serial.peek() >= ' ' && Serial.peek() <= '~') {
-      // Serial.println("good character");
-      tempChar = Serial.read();
-      Serial.print("tempChar: ");
-      Serial.println(char(tempChar));
-    } else {
-      Serial.read();
-      // Serial.println("bad character");
-    }
+  switch(mode) {
+    case 0: //off
+      for(int i = 0; i < NUM_DIGITS; i++) {
+        for(int j = 0; j < NUM_LEDS; j++) {
+          digits[i][j] = 0x000000;
+        }
+      }
+    break;
+    case 1: //serial char
+      if(Serial.available() > 0) {
+        Serial.println(Serial.peek());
+        if(Serial.peek() >= ' ' && Serial.peek() <= '~') {
+          // Serial.println("good character");
+          tempChar = Serial.read();
+          Serial.print("tempChar: ");
+          Serial.println(char(tempChar));
+        } else {
+          Serial.read();
+          // Serial.println("bad character");
+        }
+      }
+      setDigit(tempChar, digits[0]);
+    break
+    case 2: //web scrolling message
+      if(lastPos < (-1 * text.length())) {
+        lastPos = NUM_DIGITS;
+      }
+      if(millis() - lastTime > 1000) {  //time since last move
+        for(int i = 0; i < NUM_DIGITS; i++) {
+          if(i < lastPos - 1) { //digits before text
+            setDigit(' ', digits[i]); //turn off            
+          } else {  //digits with text
+            
+          }
+        }
+      }
+    break
   }
-  
-  setDigit(tempChar, digit1);
+
   FastLED.show();
 }
