@@ -181,7 +181,7 @@ int mode = 0;
 
 String text;
 unsigned long lastTime = 0;
-int lastPos = 0;
+int pos = 0;
 
 // espui variables
 int timeLabelId;
@@ -271,7 +271,12 @@ void wifiPasswordCallback(Control* sender, int type) {
 }
 
 void messageCallback(Control* sender, int type) {
-  text = sender->value;
+  // text = sender->value;
+  String temp = "";
+  for(int i = 0; i < NUM_DIGITS; i++) {
+    temp.concat(' ');
+  }
+  text = temp + sender->value + temp;
 }
 
 void setup() {
@@ -380,24 +385,22 @@ void loop() {
           tempChar = Serial.read();
           Serial.print("tempChar: ");
           Serial.println(char(tempChar));
+          setDigit(tempChar, digits[0]);
         } else {
           Serial.read();
           // Serial.println("bad character");
         }
       }
-      setDigit(tempChar, digits[0]);
     break
     case 2: //web scrolling message
-      if(lastPos < (-1 * text.length())) {
-        lastPos = NUM_DIGITS;
+      if(pos > text.length() + NUM_DIGITS) {
+        pos = 0;
+      } else {
+        pos++;
       }
       if(millis() - lastTime > 1000) {  //time since last move
         for(int i = 0; i < NUM_DIGITS; i++) {
-          if(i < lastPos - 1) { //digits before text
-            setDigit(' ', digits[i]); //turn off            
-          } else {  //digits with text
-            
-          }
+          setDigit(text.charAt(pos+i), digits[i]);
         }
       }
     break
