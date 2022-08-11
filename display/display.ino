@@ -166,7 +166,7 @@ DNSServer dnsServer;
 //fastled stuff
 #define NUM_LEDS 26 //probably don't want this with mutliple digits
 #define NUM_DIGITS 1
-const uint8_t dataPins = {19};
+const int digit1Pin = 19;
 CRGB digits[NUM_DIGITS][NUM_LEDS];
 
 //display related variables
@@ -279,6 +279,28 @@ void messageCallback(Control* sender, int type) {
   text = temp + sender->value + temp;
 }
 
+void modeSelectCallback(Control* sender, int value)
+{
+  mode = sender->value.toInt();
+  Serial.print("mode: ");
+  Serial.println(mode);
+}
+
+void colorCallback(Control* sender, int value) {
+  int number = (int) strtoul( &sender->value[1], NULL, 16);
+  // Split them up into r, g, b values
+  globalRed = number >> 16;
+  globalGreen = number >> 8 & 0xFF;
+  globalBlue = number & 0xFF;
+  // Serial.print("color: ");
+  // Serial.print(globalRed);
+  // Serial.print(", ");
+  // Serial.print(globalGreen);
+  // Serial.print(", ");
+  // Serial.print(globalBlue);
+  // Serial.println();
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -287,10 +309,10 @@ void setup() {
   ssid = preferences.getString("ssid", "");
   password = preferences.getString("password", "");
 
-  Serial.print("ssid: ");
-  Serial.println(ssid);
-  Serial.print("password: ");
-  Serial.println(password);
+  // Serial.print("ssid: ");
+  // Serial.println(ssid);
+  // Serial.print("password: ");
+  // Serial.println(password);
 
   ESPUI.setVerbosity(Verbosity::VerboseJSON);
   
@@ -342,28 +364,36 @@ void setup() {
   Serial.println(WiFi.getMode() == WIFI_AP ? WiFi.softAPIP() : WiFi.localIP());
 
   //espui elements
-  timeLabelId = ESPUI.label("Last Time Update:", ControlColor::Turquoise, "not updated");
+  uint16_t sep1 = ESPUI.separator("Display Controls");
+  timeLabelId = ESPUI.label("Last Time Update:", ControlColor::Peterriver, "not updated");
   timeId = ESPUI.addControl(Time, "", "", None, 0, timeCallback);
   ESPUI.button("Update Time", &timeButtonCallback, ControlColor::Peterriver, "Press");
 
-  auto text3 = ESPUI.text("Message", messageCallback, ControlColor::Dark, "message");
-  ESPUI.addControl(ControlType::Max, "", "32", ControlColor::None, text2);
+  uint16_t select1 = ESPUI.addControl( ControlType::Select, "Mode", "Initial Value", ControlColor::Peterriver, Control::noParent, modeSelectCallback);
+  ESPUI.addControl( ControlType::Option, "Off", "0", ControlColor::Peterriver, select1);
+  ESPUI.addControl( ControlType::Option, "Serial Character", "1", ControlColor::Peterriver, select1);
+  ESPUI.addControl( ControlType::Option, "Text", "2", ControlColor::Peterriver, select1);
 
+  auto text3 = ESPUI.text("Message", messageCallback, ControlColor::Peterriver, "message");
+  ESPUI.addControl(ControlType::Max, "", "32", ControlColor::None, 32);
+
+  uint16_t colorId = ESPUI.text("Color", colorCallback, ControlColor::Peterriver, "#800000");
+  ESPUI.setInputType(colorId, "color");
+
+  ESPUI.separator("WiFi Settings");
   auto text1 = ESPUI.text("WiFi SSID", wifiSSIDCallback, ControlColor::Dark, ssid);
   ESPUI.addControl(ControlType::Max, "", "32", ControlColor::None, text1);
 
   auto text2 = ESPUI.text("WiFi Password", wifiPasswordCallback, ControlColor::Dark, "password");
   ESPUI.addControl(ControlType::Max, "", "32", ControlColor::None, text2);
 
-  ESPUI.button("Update WiFi Credentials", &wifiButtonCallback, ControlColor::Turquoise, "Update ");
+  ESPUI.button("Update WiFi Credentials", &wifiButtonCallback, ControlColor::Dark, "Update ");
 
 
   ESPUI.begin("ESPUI Control");
 
   //initialize leds
-  for(int i = 0; i < NUM_LEDS; i++) {
-    FastLED.addLeds<NEOPIXEL, dataPins[i]>(digits[i], NUM_LEDS);
-  }
+  FastLED.addLeds<NEOPIXEL, digit1Pin>(digits[0], NUM_LEDS);
 }
 
 void loop() {
@@ -391,7 +421,7 @@ void loop() {
           // Serial.println("bad character");
         }
       }
-    break
+    break;
     case 2: //web scrolling message
       if(pos > text.length() + NUM_DIGITS) {
         pos = 0;
@@ -399,11 +429,13 @@ void loop() {
         pos++;
       }
       if(millis() - lastTime > 1000) {  //time since last move
+        lastTime = millis();
+        Serial.println(pos);
         for(int i = 0; i < NUM_DIGITS; i++) {
           setDigit(text.charAt(pos+i), digits[i]);
         }
       }
-    break
+    break;
   }
 
   FastLED.show();
